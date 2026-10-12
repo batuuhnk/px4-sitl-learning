@@ -14,9 +14,10 @@ PX4 ayrı bir terminalde `~/px4/sitl.sh` ile çalışırken, **Ubuntu terminalin
 
 Bu, PX4 konsoluna `commander takeoff` yazmakla aynı şey. Sonrasında olanlar:
 
-1. `commander` aracı arm etti (motorlar çalıştı) ve uçuş modunu **Takeoff**'a aldı.
-2. Araç `MIS_TAKEOFF_ALT` parametresindeki yüksekliğe (varsayılan 2.5 m) dikey olarak tırmandı.
-3. Hedef yüksekliğe ulaşınca mod kendiliğinden **Hold**'a geçti. Araç olduğu yerde asılı kaldı (hover).
+1. `commander takeoff` komutu iki ayrı `vehicle_command` gönderiyor: önce "Takeoff moduna geç" (`VEHICLE_CMD_NAV_TAKEOFF`), bu kabul edilirse "arm et". Kodu `Commander::custom_command()` içinde (`commander/Commander.cpp`).
+2. Bu komutları `Commander::handle_command()` işliyor: modu **Takeoff**'a alıyor ve aracı arm ediyor (motorlar çalışıyor).
+3. Kalkışı `navigator`'ın Takeoff modu yürütüyor. Hedef yüksekliği `Takeoff::set_takeoff_position()` hesaplıyor: o anki yükseklik + `MIS_TAKEOFF_ALT` (varsayılan 2.5 m, `navigator/mission_params.c`). Araç bu yüksekliğe dikey olarak tırmandı.
+4. Hedef yüksekliğe ulaşınca mod kendiliğinden **Hold**'a geçti. Araç olduğu yerde asılı kaldı (hover).
 
 Yüksekliği birkaç saniyede bir okuyarak tırmanışı da takip ettim:
 
@@ -34,6 +35,8 @@ QGC'deki **Takeoff** düğmesi aynı işi yapıyor. Fark sadece komutun geldiği
 QGC "Takeoff" düğmesi  -> MAVLink mesajı (UDP 14550) -> mavlink modülü -> vehicle_command -> commander
 pxh> commander takeoff ->                                                   vehicle_command -> commander
 ```
+
+QGC'den gelen MAVLink komutunu `vehicle_command`'a çeviren kod `MavlinkReceiver::handle_message_command_both()` (`mavlink/mavlink_receiver.cpp`).
 
 İki durumda da `commander` aynı `vehicle_command` mesajını alıyor (4. bölümdeki "Karar ve haberleşme" şeması). Ben terminali tercih ettim, çünkü komutları ve ölçümleri aynı yerden, tekrarlanabilir şekilde çalıştırabiliyordum.
 
@@ -68,7 +71,7 @@ Bu değerleri sırayla okuduğum için aralarında birkaç yüz milisaniye fark 
 
 ![Hover sırasında roll ekseni](../analysis/plots/hover_cascade.png)
 
-Üstteki grafikte konum kontrolcüsünün istediği açı ±1.5° arasında sıçrıyor, gerçek açı ise yumuşak ilerliyor. Alttaki grafikte gyro ölçümü çok gürültülü, rate kontrolcüsü gürültüyü değil genel eğilimi takip ediyor.
+Üstteki grafikte konum kontrolcüsünün istediği açı ±1.5° arasında sıçrıyor, gerçek açı ise yumuşak ilerliyor. Alttaki grafikte gyro ölçümü çok gürültülü, rate kontrolcüsü gürültüyü değil genel eğilimi takip ediyor. Kontrolcüye giden gyro verisi önce `VehicleAngularVelocity::FilterAngularVelocity()` içinde alçak geçiren filtreden geçiyor (`IMU_GYRO_CUTOFF` parametresi, `sensors/vehicle_angular_velocity/VehicleAngularVelocity.cpp`).
 
 ## GPS kaybı deneyi
 
@@ -78,15 +81,16 @@ Araç havadayken GPS'i kesip EKF2'nin (durum tahmincisi) ve failsafe mekanizmas�
 
 PX4'te hata simülasyonu için `failure` komutu var. GPS'i kesmek için `failure gps off` yazdım, ama `Timeout waiting for ack` hatası aldım ve GPS çalışmaya devam etti. Sebebini kaynak kodda buldum.
 
-**`failure` komutu GPS'i kendisi kesmiyor.** Kodu `src/systemcmds/failure/failure.cpp` dosyasında. Yaptığı iş `vehicle_command` topic'ine "GPS'e hata enjekte et" (`VEHICLE_CMD_INJECT_FAILURE`) mesajı yayınlamak ve birinin "tamam" cevabını (`vehicle_command_ack`) beklemek. Cevap gelmezse zaman aşımı veriyor. GPS'i gerçekten kesmek, GPS verisini üreten modülün işi.
+**`failure` komutu GPS'i kendisi kesmiyor.** Kodu `src/systemcmds/failure/failure.cpp` dosyasındaki `inject_failure()` fonksiyonu. Yaptığı iş `vehicle_command` topic'ine "GPS'e hata enjekte et" (`VEHICLE_CMD_INJECT_FAILURE`) mesajı yayınlamak ve birinin "tamam" cevabını (`vehicle_command_ack`) beklemek. Cevap gelmezse zaman aşımı veriyor. GPS'i gerçekten kesmek, GPS verisini üreten modülün işi.
 
 **GPS verisini hangi modülün ürettiği simülatöre göre değişiyor:**
 
-- Gazebo ve jMAVSim ayrı programlar. PX4'ün içindeki `simulator_mavlink` modülü onlarla konuşan bir köprü; GPS dahil sensör verilerini oradan alıp içeri aktarıyor.
-- SIH'te ayrı bir program yok. GPS verisini PX4'ün içindeki `sensor_gps_sim` modülü üretiyor. `simulator_mavlink` hiç çalışmıyor.
+- Gazebo Classic ve jMAVSim ayrı programlar. PX4'ün içindeki `simulator_mavlink` modülü onlarla konuşan bir köprü; GPS dahil sensör verilerini oradan alıp içeri aktarıyor.
+- Yeni Gazebo da ayrı bir program, ama köprüsü başka: `gz_bridge`. GPS verisini `GZBridge::navSatCallback()` içinde `sensor_gps` olarak yayınlıyor (`src/modules/simulation/gz_bridge/GZBridge.cpp`).
+- SIH'te ayrı bir program yok. GPS verisini PX4'ün içindeki `sensor_gps_sim` modülü üretiyor: `SensorGpsSim::Run()` her 125 ms'de bir `sensor_gps` yayınlıyor (`src/modules/simulation/sensor_gps_sim/SensorGpsSim.cpp`). `simulator_mavlink` hiç çalışmıyor.
 
 ```
-Gazebo / jMAVSim:
+Gazebo Classic / jMAVSim:
   failure gps off -> vehicle_command -> simulator_mavlink -> GPS'i keser, "tamam" der
 
 SIH (bende):
@@ -95,7 +99,7 @@ SIH (bende):
                                      -> kimse cevap vermiyor -> Timeout
 ```
 
-Mesajı dinleyen kod sadece `src/modules/simulation/simulator_mavlink/SimulatorMavlink.cpp` içinde:
+Mesajı dinleyen kod sadece `src/modules/simulation/simulator_mavlink/SimulatorMavlink.cpp` içindeki `SimulatorMavlink::check_failure_injections()` fonksiyonunda:
 
 ```cpp
 if (failure_unit == vehicle_command_s::FAILURE_UNIT_SENSOR_GPS) {
@@ -105,13 +109,13 @@ if (failure_unit == vehicle_command_s::FAILURE_UNIT_SENSOR_GPS) {
     }
 ```
 
-`sensor_gps_sim` ise `vehicle_command` topic'ine abone bile değil, mesajı hiç görmüyor. CAN bus'ta "GPS kapan" mesajı gönderip ACK beklemek gibi: GPS kartının firmware'i o mesaj ID'sini dinlemiyorsa mesaj dolaşıyor, kimse almıyor, gönderen timeout'a düşüyor.
+`sensor_gps_sim` ise `vehicle_command` topic'ine abone bile değil, mesajı hiç görmüyor. Kaynak kodun tamamında `FAILURE_UNIT_SENSOR_GPS` sadece `failure.cpp` ve `SimulatorMavlink.cpp`'de geçiyor. Yani bu komut yeni Gazebo'da (`gz_bridge`) da çalışmıyor, sadece Gazebo Classic ve jMAVSim'de çalışıyor. CAN bus'ta "GPS kapan" mesajı gönderip ACK beklemek gibi: GPS kartının firmware'i o mesaj ID'sini dinlemiyorsa mesaj dolaşıyor, kimse almıyor, gönderen timeout'a düşüyor.
 
-`commander` tarafında da bu komut bilerek pas geçiliyor (`Commander.cpp`, "handled by other parts of the system" yorumlu `case` listesi).
+`commander` tarafında da bu komut bilerek pas geçiliyor: `Commander::handle_command()` içinde "handled by other parts of the system" yorumlu `case` listesinde (`commander/Commander.cpp`).
 
 **Ne yaptım:** Mesajla "kapan" demek işe yaramadığı için GPS verisini üreten modülü doğrudan durdurdum (`sensor_gps_sim stop`). Sonuç aynı: PX4'e artık GPS verisi gelmiyor. Gerçek araçta GPS kablosunun kopması gibi.
 
-Bu SIH'te gerçek bir eksiklik. Düzeltmek için `simulator_mavlink`'tekine benzer kodu `sensor_gps_sim`'e eklemek gerekiyor: `vehicle_command`'a abone olmak, GPS hatası gelince veri üretmeyi durdurmak ve cevap (ack) göndermek. Sıradaki çalışmam bu olacak.
+Bu SIH'te (ve yeni Gazebo'da) gerçek bir eksiklik. Düzeltmek için `simulator_mavlink`'tekine benzer kodu `sensor_gps_sim`'e eklemek gerekiyor: `vehicle_command`'a abone olmak, GPS hatası gelince veri üretmeyi durdurmak ve cevap (ack) göndermek. Sıradaki çalışmam bu olacak.
 
 ### Sonuç
 
@@ -134,6 +138,14 @@ Gözlemlerim:
 3. **Failsafe, EKF2 GPS'i bırakmadan önce devreye girdi.** Commander konum doğruluğu belli bir eşiği geçince (`COM_POS_FS_EPH`) karar veriyor, EKF2'nin bayrağını beklemiyor.
 4. İrtifa barometre sayesinde korundu, ama yere inerken tahmin 0.4 m yerin altını gösterdi.
 5. GPS'i geri açınca EKF2 konumu hemen düzeltti.
+
+Kodda karşılıkları (`src/modules/` altında):
+
+- EKF2'nin GPS'i bırakması: `Ekf::controlGpsFusion()` içinde, yeni GPS verisi `reset_timeout_max` süresince (7 sn, `ekf2/EKF/common.h`) gelmezse `stopGnssFusion()` çağrılıyor ve "GNSS data stopped" uyarısı veriliyor (`ekf2/EKF/aid_sources/gnss/gps_control.cpp`). Logda ölçtüğüm 7.9 sn bununla uyumlu; GPS mesajları logda saniyede bir kaydedildiği için ±1 sn pay var.
+- Failsafe kararı: Konum doğruluğu `COM_POS_FS_EPH` eşiğini geçince konum gerektiren modlar geçersiz sayılıyor, `EstimatorChecks::setModeRequirementFlags()` (`commander/HealthAndArmingChecks/checks/estimatorCheck.cpp`).
+- "Failsafe: blind land" mesajı: `MulticopterPositionControl::Run()` (`mc_pos_control/MulticopterPositionControl.cpp`).
+- İnişten sonra otomatik disarm: `Commander::handleAutoDisarm()`. Bekleme süresi `COM_DISARM_LAND` (varsayılan 2 sn, `commander/commander_params.c`). Yere değmeden disarm'a kadar geçen ~2.7 sn, bu süre ile land detector'ın onay süresinin toplamı.
+- GPS geri gelince konumun düzeltilmesi: `Ekf::controlGnssPosFusion()` içinde `resetHorizontalPositionToGnss()`.
 
 ## Log analizi
 

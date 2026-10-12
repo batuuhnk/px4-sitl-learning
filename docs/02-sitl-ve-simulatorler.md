@@ -23,10 +23,10 @@ STM32 tarafından bir benzetme: iş mantığını HAL'dan ayırıp aynı `.c` do
 
 PX4 birden fazla simülatörle çalışabiliyor:
 
-- **SIH (Simulation In Hardware):** PX4'ün içinde bir modül olarak çalışıyor, ayrı bir program değil. Çok hafif, 3D görüntüsü yok. Ben bunu kullandım, çünkü sanal makinemde 4 GB RAM var.
-- **Gazebo:** Asıl önerilen simülatör. 3D görüntü, gerçekçi fizik, kamera ve lidar gibi sensörler var. Karşılığında ağır.
-- **Gazebo Classic:** Gazebo'nun eski sürümü, hâlâ kodda var ama artık önerilmiyor.
-- **jMAVSim:** Java ile yazılmış basit bir simülatör, sadece multikopter için.
+- **SIH (Simulation In Hardware):** PX4'ün içinde bir modül olarak çalışıyor, ayrı bir program değil (`src/modules/simulation/simulator_sih`). GPS, barometre ve manyetometre verisini de PX4 içindeki `sensor_gps_sim`, `sensor_baro_sim`, `sensor_mag_sim` modülleri üretiyor. Çok hafif, 3D görüntüsü yok. Ben bunu kullandım, çünkü sanal makinemde 4 GB RAM var.
+- **Gazebo:** Asıl önerilen simülatör. 3D görüntü, gerçekçi fizik, kamera ve lidar gibi sensörler var. Karşılığında ağır. Ayrı bir program; PX4 ile arasındaki köprü `gz_bridge` modülü (`src/modules/simulation/gz_bridge`).
+- **Gazebo Classic:** Gazebo'nun eski sürümü, hâlâ kodda var ama artık önerilmiyor. PX4 ile MAVLink üzerinden konuşuyor; köprü `simulator_mavlink` modülü (`src/modules/simulation/simulator_mavlink`).
+- **jMAVSim:** Java ile yazılmış basit bir simülatör, sadece multikopter için. O da `simulator_mavlink` üzerinden bağlanıyor.
 - **FlightGear, JSBSim:** Daha çok sabit kanat uçaklar için.
 
 SIH'in bir eksiğini de bu çalışmada buldum: `failure gps off` komutu SIH'te çalışmıyor (ayrıntılar [5. bölümde](05-kontrol-ve-gps-kaybi.md)).

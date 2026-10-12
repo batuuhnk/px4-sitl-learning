@@ -42,7 +42,7 @@ flowchart TB
     ALLOC -->|actuator_motors| OUT
 ```
 
-`pwm_out_sim` motor komutlarını `actuator_outputs` topic'iyle simülatöre geri veriyor, simülatör de aracın yeni hareketini hesaplıyor. Döngü böyle kapanıyor.
+`pwm_out_sim` motor komutlarını `actuator_outputs_sim` topic'iyle simülatöre geri veriyor, simülatör de aracın yeni hareketini hesaplıyor. Döngü böyle kapanıyor.
 
 ### Karar ve haberleşme
 
@@ -63,19 +63,38 @@ flowchart TB
 
 ### Katman katman modüller
 
-**Sensörler.** Gerçek araçta her sensörün kendi sürücüsü var (örneğin ICM-42688 IMU sürücüsü), `src/drivers/` altında. Bende bunların yerine simülatör modülleri çalışıyor: `simulator_sih` IMU verisini, `sensor_gps_sim`, `sensor_baro_sim` ve `sensor_mag_sim` de GPS, barometre ve manyetometre verisini üretiyor. `simulator_sih` ayrıca aracın gerçek konumunu da `*_groundtruth` topic'lerine yayınlıyor. 5. bölümde EKF2'nin tahminini bununla karşılaştırdım.
+Her katmanda verinin kodda nerede üretildiğini de yazdım. Dosya yolları `PX4-Autopilot/src/modules/` altına göre.
 
-**Sensör işleme.** `sensors` modülü birden fazla IMU varsa hangisinin kullanılacağını seçiyor, kalibrasyonu uyguluyor ve veriyi filtreliyor. Kontrolcülerin kullandığı `vehicle_angular_velocity` de burada üretiliyor.
+**Sensörler.** Gerçek araçta her sensörün kendi sürücüsü var (örneğin ICM-42688 IMU sürücüsü), `src/drivers/` altında. Bende bunların yerine simülatör modülleri çalışıyor:
 
-**Tahmin.** `ekf2`, IMU'yu GPS, barometre ve manyetometreyle birleştirip (sensör füzyonu) aracın konumunu, hızını ve duruşunu tahmin ediyor.
+- IMU: `simulator_sih` önce aracın fiziğini hesaplıyor (`Sih::read_motors()` motor komutlarını okuyor, `Sih::generate_force_and_torques()` kuvvetleri, `Sih::equations_of_motion()` hareketi hesaplıyor). Sonra `Sih::reconstruct_sensors_signals()` bu hareketten ivme ve gyro değerlerini üretip `sensor_accel` ve `sensor_gyro` olarak yayınlıyor (`simulation/simulator_sih/sih.cpp`).
+- GPS: `SensorGpsSim::Run()` içinde `sensor_gps` yayınlanıyor (`simulation/sensor_gps_sim/SensorGpsSim.cpp`).
+- Barometre: `SensorBaroSim::Run()` → `sensor_baro` (`simulation/sensor_baro_sim/SensorBaroSim.cpp`).
+- Manyetometre: `SensorMagSim::Run()` → `sensor_mag` (`simulation/sensor_mag_sim/SensorMagSim.cpp`).
 
-**Karar.** `commander` aracın genel durumunu yönetiyor: arm/disarm, uçuş modu, sağlık kontrolleri ve failsafe kararları. `navigator` görev (mission), eve dönüş (RTL) gibi otomatik modlarda hedef noktaları üretiyor. `land_detector` aracın yere inip inmediğini anlıyor.
+`simulator_sih` ayrıca aracın gerçek konumunu `Sih::publish_ground_truth()` içinde `*_groundtruth` topic'lerine yayınlıyor. 5. bölümde EKF2'nin tahminini bununla karşılaştırdım.
 
-**Kontrol.** İç içe geçmiş döngüler (kaskad kontrol). Dıştan içe doğru: konum → duruş → açısal hız. Her döngü bir içtekine hedef veriyor ve içteki döngüler daha hızlı çalışıyor. `control_allocator` en sonda istenen tork ve itkiyi dört motora paylaştırıyor.
+**Sensör işleme.** `sensors` modülü birden fazla IMU varsa hangisinin kullanılacağını seçiyor (`sensors/voted_sensors_update.cpp`), kalibrasyonu uyguluyor ve veriyi filtreliyor. Alt parçaları ayrı work item'lar:
 
-**Çıkış.** Gerçek araçta motor sürücüleri (ESC) PWM ya da DShot ile sürülüyor. Bende `pwm_out_sim` motor komutlarını simülatöre geri veriyor ve döngü kapanıyor.
+- `VehicleIMU::Publish()` → `vehicle_imu`. Kalibrasyon burada uygulanıyor (`sensors/vehicle_imu/VehicleIMU.cpp`).
+- `VehicleAngularVelocity::Run()` → `vehicle_angular_velocity`. Gyro filtresi (`IMU_GYRO_CUTOFF`) `VehicleAngularVelocity::FilterAngularVelocity()` içinde (`sensors/vehicle_angular_velocity/VehicleAngularVelocity.cpp`).
+- `VehicleAirData::Run()` → `vehicle_air_data`, `VehicleMagnetometer::Run()` → `vehicle_magnetometer`, `VehicleGPSPosition::Run()` → `vehicle_gps_position`.
 
-**Haberleşme.** `mavlink` QGroundControl ile konuşuyor: telemetriyi gönderiyor, QGC'den gelen komutları (kalkış, mod değiştirme) `vehicle_command` olarak içeri alıyor.
+**Tahmin.** `ekf2`, IMU'yu GPS, barometre ve manyetometreyle birleştirip (sensör füzyonu) aracın konumunu, hızını ve duruşunu tahmin ediyor. Ana döngü `EKF2::Run()`; sonuçları `EKF2::PublishAttitude()` (`vehicle_attitude`) ve `EKF2::PublishLocalPosition()` (`vehicle_local_position`) yayınlıyor (`ekf2/EKF2.cpp`). Filtrenin kendisi `ekf2/EKF/` klasöründe.
+
+**Karar.** `commander` aracın genel durumunu yönetiyor: arm/disarm, uçuş modu, sağlık kontrolleri ve failsafe kararları. Gelen komutlar `Commander::handle_command()` içinde işleniyor, `vehicle_status` ise `Commander::run()` içinde yayınlanıyor (`commander/Commander.cpp`). `navigator` görev (mission), eve dönüş (RTL) gibi otomatik modlarda hedef noktaları üretiyor; `Navigator::publish_position_setpoint_triplet()` (`navigator/navigator_main.cpp`). `land_detector` aracın yere inip inmediğini anlıyor; `LandDetector::Run()` → `vehicle_land_detected`.
+
+**Kontrol.** İç içe geçmiş döngüler (kaskad kontrol). Dıştan içe doğru: konum → duruş → açısal hız. Her döngü bir içtekine hedef veriyor ve içteki döngüler daha hızlı çalışıyor.
+
+- `FlightModeManager::generateTrajectorySetpoint()` → `trajectory_setpoint` (`flight_mode_manager/FlightModeManager.cpp`)
+- `MulticopterPositionControl::Run()` → `vehicle_attitude_setpoint` (`mc_pos_control/MulticopterPositionControl.cpp`)
+- `MulticopterAttitudeControl::Run()` → `vehicle_rates_setpoint` (`mc_att_control/mc_att_control_main.cpp`)
+- `MulticopterRateControl::Run()` → `vehicle_torque_setpoint`, `vehicle_thrust_setpoint` (`mc_rate_control/MulticopterRateControl.cpp`)
+- `ControlAllocator::publish_actuator_controls()` → `actuator_motors`. İstenen tork ve itkiyi dört motora paylaştıran kısım (`control_allocator/ControlAllocator.cpp`).
+
+**Çıkış.** Gerçek araçta motor sürücüleri (ESC) PWM ya da DShot ile sürülüyor. Bende `PWMSim::updateOutputs()` motor komutlarını `actuator_outputs_sim` olarak simülatöre geri veriyor (`simulation/pwm_out_sim/PWMSim.cpp`), `Sih::read_motors()` de bunu okuyor. Döngü böyle kapanıyor.
+
+**Haberleşme.** `mavlink` QGroundControl ile konuşuyor: telemetriyi gönderiyor, QGC'den gelen komutları (kalkış, mod değiştirme) içeri alıyor. Gelen komut mesajları `MavlinkReceiver::handle_message_command_both()` içinde `vehicle_command` olarak yayınlanıyor (`mavlink/mavlink_receiver.cpp`).
 
 ## Thread'ler (task'lar)
 
@@ -155,7 +174,7 @@ Fark ettiklerim:
 
 ## İlk kod değişikliğim
 
-PX4'ün örnek modüllerinden `px4_simple_app`'i inceledim. İvme verisine abone olup ekrana basıyor. Ama aynı zamanda bu ivme değerlerini `vehicle_attitude` topic'ine de yayınlıyor. Oysa bu topic'i EKF2 de yayınlıyor ve attitude kontrolcüsü onu kullanıyor. Bu örnek uçan bir araçta çalıştırılsa kontrolcü yanlış veri alırdı.
+PX4'ün örnek modüllerinden `px4_simple_app`'i inceledim (`src/examples/px4_simple_app/px4_simple_app.c`, tüm kod `px4_simple_app_main()` fonksiyonunda). `vehicle_acceleration`'a abone olup `px4_poll()` ile veri bekliyor ve ekrana basıyor. Ama aynı zamanda bu ivme değerlerini `orb_publish()` ile `vehicle_attitude` topic'ine de yayınlıyor. Oysa bu topic'i EKF2 de yayınlıyor ve attitude kontrolcüsü onu kullanıyor. Bu örnek uçan bir araçta çalıştırılsa kontrolcü yanlış veri alırdı.
 
 Yayınlama kısmını kaldırdım, mesajı değiştirdim, derleyip çalıştırdım:
 
