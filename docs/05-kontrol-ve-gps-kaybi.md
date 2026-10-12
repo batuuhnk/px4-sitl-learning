@@ -1,4 +1,4 @@
-# 4. Kontrol döngüleri ve GPS kaybı
+# 5. Kontrol döngüleri ve GPS kaybı
 
 ## Havada kontrol zinciri
 
@@ -63,4 +63,4 @@ Yazarken iki hata yaptım:
 - Zaman damgaları `uint64`. Log başlangıcından önceki bir değerden çıkarma yapınca sayı taşıyıp çok büyük değerler verdi. Mikrodenetleyicide `uint32_t` tick sayacıyla yaşanan taşma ile aynı hata. Önce float'a çevirerek çözdüm.
 - GPS kesintisini GPS mesajları arasındaki boşluktan bulmaya çalıştım, ama logger disarm'da kapandığı için GPS'in geri geldiği an logda yoktu. EKF2'nin `cs_gnss_pos` bayrağına bakarak çözdüm.
 
-Önceki: [3. PX4 mimarisi](03-mimari-uorb.md)
+Önceki: [4. PX4 mimarisi](04-mimari-uorb.md)

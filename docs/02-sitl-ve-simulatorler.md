@@ -29,7 +29,7 @@ PX4 birden fazla simülatörle çalışabiliyor:
 - **jMAVSim:** Java ile yazılmış basit bir simülatör, sadece multikopter için.
 - **FlightGear, JSBSim:** Daha çok sabit kanat uçaklar için.
 
-SIH'in bir eksiğini de bu çalışmada buldum: `failure gps off` komutu SIH'te çalışmıyor (ayrıntılar [4. bölümde](04-kontrol-ve-gps-kaybi.md)).
+SIH'in bir eksiğini de bu çalışmada buldum: `failure gps off` komutu SIH'te çalışmıyor (ayrıntılar [5. bölümde](05-kontrol-ve-gps-kaybi.md)).
 
 ## QGroundControl (simülatör değil)
 
@@ -58,4 +58,4 @@ Kurulumda karşılaştığım bir sorun: PX4'ü Docker'da `-p 14550:14550/udp` i
 
 Derleyip çalıştırmak için [`scripts/sitl.sh`](../scripts/sitl.sh), çalışan PX4'e dışarıdan komut göndermek için [`scripts/pxh.sh`](../scripts/pxh.sh) kullanıyorum.
 
-Önceki: [1. PX4, Pixhawk ve ArduPilot](01-px4-pixhawk-ardupilot.md) · Sonraki: [3. PX4 mimarisi: uORB ve modüller](03-mimari-uorb.md)
+Önceki: [1. PX4, Pixhawk ve ArduPilot](01-px4-pixhawk-ardupilot.md) · Sonraki: [3. Kurulum ve kullandığım komutlar](03-kurulum-ve-komutlar.md)

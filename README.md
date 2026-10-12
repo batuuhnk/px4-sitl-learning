@@ -6,8 +6,9 @@ STM32 ve FreeRTOS üzerinde gömülü yazılım geliştiriyorum. Bu repoda drone
 
 1. [PX4, Pixhawk ve ArduPilot](docs/01-px4-pixhawk-ardupilot.md): Uçuş kontrolcüsü nedir, donanım ve yazılım tarafı, iki büyük açık kaynak proje
 2. [SITL, simülatörler ve QGroundControl](docs/02-sitl-ve-simulatorler.md): Donanım olmadan nasıl çalıştım, hangi araçları kullandım
-3. [PX4 mimarisi: uORB ve modüller](docs/03-mimari-uorb.md): Modüller nasıl haberleşiyor, thread yapısı, ilk kod değişikliğim
-4. [Kontrol döngüleri ve GPS kaybı](docs/04-kontrol-ve-gps-kaybi.md): Havada kontrol zinciri, GPS kesilince ne oluyor, log analizi
+3. [Kurulum ve kullandığım komutlar](docs/03-kurulum-ve-komutlar.md): Hangi komutu nerede ve neden çalıştırdım, adım adım
+4. [PX4 mimarisi: uORB ve modüller](docs/04-mimari-uorb.md): Modül şeması, thread'ler, topic'ler, ilk kod değişikliğim
+5. [Kontrol döngüleri ve GPS kaybı](docs/05-kontrol-ve-gps-kaybi.md): Havada kontrol zinciri, GPS kesilince ne oluyor, log analizi
 
 ![GPS kaybı](analysis/plots/gps_loss_overview.png)
 
@@ -29,7 +30,7 @@ git clone --recursive --depth 1 --branch v1.17.0 https://github.com/PX4/PX4-Auto
 ./scripts/pxh.sh listener vehicle_attitude   # bir topic'i oku
 ```
 
-Log analizi (pyulog ve matplotlib gerekiyor, PX4'ün Docker imajında ikisi de var):
+Ayrıntılı kurulum adımları 3. bölümde. Log analizi (pyulog ve matplotlib gerekiyor, PX4'ün Docker imajında ikisi de var):
 
 ```bash
 python3 analysis/gps_loss.py <ucus_logu.ulg> analysis/plots
@@ -37,5 +38,5 @@ python3 analysis/gps_loss.py <ucus_logu.ulg> analysis/plots
 
 ## Sırada
 
-- SIH simülatörüne GPS hata enjeksiyonu eklemek (şu an çalışmıyor, bkz. 4. bölüm)
+- SIH simülatörüne GPS hata enjeksiyonu eklemek (şu an çalışmıyor, bkz. 5. bölüm)
 - ArduPilot mimarisiyle daha ayrıntılı karşılaştırma
