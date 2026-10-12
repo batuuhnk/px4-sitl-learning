@@ -4,63 +4,60 @@ Bu bölümde PX4'ü çalışırken inceledim. Komutları PX4'ün konsolunda (`px
 
 ## Genel şema
 
-PX4'te modüller birbirini doğrudan çağırmıyor. Her modül sonucunu bir uORB topic'ine yayınlıyor, ihtiyacı olan modül de o topic'e abone oluyor. Aşağıdaki şemada kutular modüller, oklar üzerindeki isimler topic'ler. Çok kopterde (multicopter) sensörden motora kadar olan ana veri yolu bu:
+PX4'te modüller birbirini doğrudan çağırmıyor. Her modül sonucunu bir uORB topic'ine yayınlıyor, ihtiyacı olan modül de o topic'e abone oluyor. Aşağıdaki şemalarda kutular modüller, oklar üzerindeki isimler topic'ler.
+
+### Sensörden motora veri yolu (multicopter)
 
 ```mermaid
 flowchart TB
     subgraph SIM["Sensörler (bende simülatör, gerçek araçta sürücüler)"]
-        SIH["simulator_sih<br/>fizik modeli + IMU"]
+        direction LR
+        SIH["simulator_sih<br/>IMU"]
         GPSS["sensor_gps_sim"]
         BAROS["sensor_baro_sim"]
         MAGS["sensor_mag_sim"]
     end
 
-    SENS["sensors<br/>sensör seçimi, filtreleme, kalibrasyon"]
+    SENS["sensors<br/>seçim, kalibrasyon, filtre"]
     EKF["ekf2<br/>konum ve duruş tahmini"]
+    FMM["flight_mode_manager<br/>hedef yörünge"]
+    POS["mc_pos_control<br/>konum döngüsü, 125 Hz"]
+    ATT["mc_att_control<br/>duruş döngüsü, 250 Hz"]
+    RATE["mc_rate_control<br/>açısal hız döngüsü, 250 Hz"]
+    ALLOC["control_allocator<br/>motorlara paylaştır"]
+    OUT["pwm_out_sim<br/>gerçek araçta PWM/DShot"]
 
-    subgraph KARAR["Karar ve görev"]
-        NAV["navigator<br/>görev, RTL, bekleme"]
-        CMD["commander<br/>arm, uçuş modu, failsafe"]
-        LAND["land_detector"]
-    end
-
-    subgraph KONTROL["Kontrol (iç içe döngüler)"]
-        FMM["flight_mode_manager"]
-        POS["mc_pos_control<br/>konum, 125 Hz"]
-        ATT["mc_att_control<br/>duruş, 250 Hz"]
-        RATE["mc_rate_control<br/>açısal hız, 250 Hz"]
-        ALLOC["control_allocator<br/>tork ve itkiyi motorlara dağıt"]
-    end
-
-    OUT["pwm_out_sim<br/>gerçek araçta PWM/DShot sürücüsü"]
-
-    subgraph HAB["Haberleşme ve kayıt"]
-        MAV["mavlink"]
-        LOG["logger"]
-    end
-    QGC["QGroundControl"]
-
-    SIH -->|"sensor_accel, sensor_gyro"| SENS
+    SIH -->|"sensor_accel<br/>sensor_gyro"| SENS
     GPSS -->|sensor_gps| SENS
     BAROS -->|sensor_baro| SENS
     MAGS -->|sensor_mag| SENS
-    SENS -->|"vehicle_imu, vehicle_air_data,<br/>vehicle_magnetometer, vehicle_gps_position"| EKF
-    SENS -->|vehicle_angular_velocity| RATE
+    SENS -->|"vehicle_imu, vehicle_air_data<br/>vehicle_magnetometer, vehicle_gps_position"| EKF
     EKF -->|vehicle_local_position| POS
-    EKF -->|vehicle_attitude| ATT
-    EKF -->|estimator_status| CMD
-    NAV -->|position_setpoint_triplet| FMM
     FMM -->|trajectory_setpoint| POS
     POS -->|vehicle_attitude_setpoint| ATT
+    EKF -->|vehicle_attitude| ATT
     ATT -->|vehicle_rates_setpoint| RATE
-    RATE -->|"vehicle_torque_setpoint,<br/>vehicle_thrust_setpoint"| ALLOC
+    SENS -->|vehicle_angular_velocity| RATE
+    RATE -->|"vehicle_torque_setpoint<br/>vehicle_thrust_setpoint"| ALLOC
     ALLOC -->|actuator_motors| OUT
-    OUT -->|actuator_outputs| SIH
-    LAND -->|vehicle_land_detected| CMD
-    CMD -->|"vehicle_status,<br/>vehicle_control_mode"| KONTROL
-    QGC <-->|"MAVLink, UDP 14550"| MAV
-    MAV -->|vehicle_command| CMD
 ```
+
+`pwm_out_sim` motor komutlarını `actuator_outputs` topic'iyle simülatöre geri veriyor, simülatör de aracın yeni hareketini hesaplıyor. Döngü böyle kapanıyor.
+
+### Karar ve haberleşme
+
+```mermaid
+flowchart TB
+    QGC["QGroundControl"] <-->|"MAVLink<br/>UDP 14550"| MAV["mavlink"]
+    MAV -->|vehicle_command| CMD["commander<br/>arm, mod, failsafe"]
+    EKF["ekf2"] -->|estimator_status| CMD
+    LAND["land_detector"] -->|vehicle_land_detected| CMD
+    CMD -->|vehicle_status| NAV["navigator<br/>görev, RTL"]
+    NAV -->|position_setpoint_triplet| FMM["flight_mode_manager"]
+    CMD -->|"vehicle_status<br/>vehicle_control_mode"| CTRL["kontrolcüler<br/>pos, att, rate"]
+```
+
+`commander` uçuş modunu ve arm durumunu `vehicle_status` ile herkese duyuruyor; kontrolcüler hangi döngülerin açık olacağını `vehicle_control_mode`'dan okuyor.
 
 `logger` neredeyse bütün topic'lere abone, uçuş boyunca hepsini `.ulg` dosyasına yazıyor. Şemayı kalabalıklaştırmamak için oklarını çizmedim.
 
