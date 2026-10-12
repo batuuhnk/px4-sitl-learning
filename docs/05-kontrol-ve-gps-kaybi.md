@@ -76,9 +76,42 @@ Araç havadayken GPS'i kesip EKF2'nin (durum tahmincisi) ve failsafe mekanizmas�
 
 ### `failure gps off` çalışmadı
 
-PX4'te hata simülasyonu için `failure` komutu var, ama SIH'te GPS için çalışmadı ("Timeout waiting for ack"). Kaynak kodda sebebini buldum: GPS hata enjeksiyonu sadece `simulator_mavlink` modülünde yazılmış (Gazebo ve jMAVSim bunu kullanıyor). SIH'in GPS'ini üreten `sensor_gps_sim` bu komutu işlemiyor, `commander` da "başka modül halleder" diye pas geçiyor. Komutu kimse cevaplamadığı için zaman aşımı oluyor.
+PX4'te hata simülasyonu için `failure` komutu var. GPS'i kesmek için `failure gps off` yazdım, ama `Timeout waiting for ack` hatası aldım ve GPS çalışmaya devam etti. Sebebini kaynak kodda buldum.
 
-Bunun yerine GPS modülünü uçuş sırasında durdurdum (`sensor_gps_sim stop`). Gerçek araçta GPS kablosunun kopması gibi.
+**`failure` komutu GPS'i kendisi kesmiyor.** Kodu `src/systemcmds/failure/failure.cpp` dosyasında. Yaptığı iş `vehicle_command` topic'ine "GPS'e hata enjekte et" (`VEHICLE_CMD_INJECT_FAILURE`) mesajı yayınlamak ve birinin "tamam" cevabını (`vehicle_command_ack`) beklemek. Cevap gelmezse zaman aşımı veriyor. GPS'i gerçekten kesmek, GPS verisini üreten modülün işi.
+
+**GPS verisini hangi modülün ürettiği simülatöre göre değişiyor:**
+
+- Gazebo ve jMAVSim ayrı programlar. PX4'ün içindeki `simulator_mavlink` modülü onlarla konuşan bir köprü; GPS dahil sensör verilerini oradan alıp içeri aktarıyor.
+- SIH'te ayrı bir program yok. GPS verisini PX4'ün içindeki `sensor_gps_sim` modülü üretiyor. `simulator_mavlink` hiç çalışmıyor.
+
+```
+Gazebo / jMAVSim:
+  failure gps off -> vehicle_command -> simulator_mavlink -> GPS'i keser, "tamam" der
+
+SIH (bende):
+  failure gps off -> vehicle_command -> sensor_gps_sim    -> mesajı dinlemiyor
+                                        commander         -> "başka modülün işi" diye geçiyor
+                                     -> kimse cevap vermiyor -> Timeout
+```
+
+Mesajı dinleyen kod sadece `src/modules/simulation/simulator_mavlink/SimulatorMavlink.cpp` içinde:
+
+```cpp
+if (failure_unit == vehicle_command_s::FAILURE_UNIT_SENSOR_GPS) {
+    if (failure_type == vehicle_command_s::FAILURE_TYPE_OFF) {
+        PX4_WARN("CMD_INJECT_FAILURE, GPS off");
+        _gps_blocked = true;    // bundan sonra GPS verisini içeri aktarma
+    }
+```
+
+`sensor_gps_sim` ise `vehicle_command` topic'ine abone bile değil, mesajı hiç görmüyor. CAN bus'ta "GPS kapan" mesajı gönderip ACK beklemek gibi: GPS kartının firmware'i o mesaj ID'sini dinlemiyorsa mesaj dolaşıyor, kimse almıyor, gönderen timeout'a düşüyor.
+
+`commander` tarafında da bu komut bilerek pas geçiliyor (`Commander.cpp`, "handled by other parts of the system" yorumlu `case` listesi).
+
+**Ne yaptım:** Mesajla "kapan" demek işe yaramadığı için GPS verisini üreten modülü doğrudan durdurdum (`sensor_gps_sim stop`). Sonuç aynı: PX4'e artık GPS verisi gelmiyor. Gerçek araçta GPS kablosunun kopması gibi.
+
+Bu SIH'te gerçek bir eksiklik. Düzeltmek için `simulator_mavlink`'tekine benzer kodu `sensor_gps_sim`'e eklemek gerekiyor: `vehicle_command`'a abone olmak, GPS hatası gelince veri üretmeyi durdurmak ve cevap (ack) göndermek. Sıradaki çalışmam bu olacak.
 
 ### Sonuç
 
