@@ -192,15 +192,21 @@ log başlangıcı = 5 000 000 µs  (5.00 s)
 mesaj          = 4 990 000 µs  (4.99 s, 10 ms önce)
 
 uint64 ile:  4 990 000 - 5 000 000 = 18 446 744 073 709 541 616 µs   (yanlış)
-float ile :  4 990 000 - 5 000 000 = -10 000 µs = -0.01 s            (doğru)
+int64 ile :  4 990 000 - 5 000 000 = -10 000 µs = -0.01 s            (doğru)
 ```
 
 Script'in ilk çıktısında `armed 18446744073709.55` gibi saçma bir değer görmemin sebebi buydu: 2⁶⁴ / 10⁶ = 18446744073709.55. Mikrodenetleyicide `uint32_t` ile aynı şey olur: `uint32_t fark = 5 - 10;` sonucu -5 değil 4294967291.
 
-Çözüm, çıkarmadan önce float'a çevirmek:
+Çözüm, çıkarmayı işaretli tam sayıda (`int64`) yapmak, saniyeye çevirmeyi en sona bırakmak:
 
 ```python
-data[d.name]["t"] = (d.data["timestamp"].astype(np.float64) - float(t0)) / 1e6
+data[d.name]["t"] = (d.data["timestamp"].astype(np.int64) - np.int64(t0)) / 1e6
+```
+
+`int64` hem eksi değer alabiliyor hem de mikrosaniyeleri kayıpsız tutuyor; aralığı yüz binlerce yıla yetiyor. PX4 de kendi içinde zamanı `uint64` olarak tutup farkı tam sayı olarak alıyor, ondan sonra küçük sonucu saniyeye çeviriyor. Örneğin `MulticopterRateControl::Run()` içinde:
+
+```cpp
+const float dt = math::constrain(((now - _last_run) * 1e-6f), 0.000125f, 0.02f);
 ```
 
 ### 2. GPS kaybı anını bulmak

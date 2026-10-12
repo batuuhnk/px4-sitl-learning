@@ -52,8 +52,8 @@ def load(path):
         if d.multi_id != 0:
             continue
         data[d.name] = d.data
-        # uint64 cikarmasi tasmasin diye once float'a cevir
-        data[d.name]["t"] = (d.data["timestamp"].astype(np.float64) - float(t0)) / 1e6
+        # uint64 cikarma negatif olunca tasiyor; isaretli int64'te cikarip sonra saniyeye cevir
+        data[d.name]["t"] = (d.data["timestamp"].astype(np.int64) - np.int64(t0)) / 1e6
     return data
 
 
