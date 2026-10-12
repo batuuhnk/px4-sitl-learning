@@ -1,6 +1,6 @@
 # 4. PX4 mimarisi: uORB ve modüller
 
-Bu bölümde PX4'ü çalışırken inceledim. Komutları PX4'ün konsolunda (`pxh>`) çalıştırdım. Modüllerin hangi topic'leri yayınladığını da kaynak koddan kontrol ettim. Geçen kavramların kısa tanımları ve FreeRTOS karşılıkları [kavramlar sözlüğünde](kavramlar.md).
+Bu bölümde PX4'ü çalışırken inceledim. Komutları PX4'ün konsolunda (`pxh>`) çalıştırdım. Modüllerin hangi topic'leri yayınladığını da kaynak koddan kontrol ettim. Geçen kavramların kısa tanımları ve FreeRTOS karşılıkları [1. bölümde](01-px4-pixhawk-ardupilot.md#temel-kavramlar-ve-gömülü-karşılıkları).
 
 ## Genel şema
 
