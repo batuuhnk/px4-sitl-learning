@@ -117,6 +117,34 @@ if (failure_unit == vehicle_command_s::FAILURE_UNIT_SENSOR_GPS) {
 
 Bu SIH'te (ve yeni Gazebo'da) gerçek bir eksiklik. Düzeltmek için `simulator_mavlink`'tekine benzer kodu `sensor_gps_sim`'e eklemek gerekiyor: `vehicle_command`'a abone olmak, GPS hatası gelince veri üretmeyi durdurmak ve cevap (ack) göndermek. Sıradaki çalışmam bu olacak.
 
+### GPS kesikken neyi izledim?
+
+GPS'i kestikten sonra 75 saniye boyunca her 3 saniyede bir şu topic'leri okudum (Ubuntu terminalinden, `pxh.sh listener ...` ile):
+
+| Topic | Alan | Ne söylüyor |
+|---|---|---|
+| `vehicle_local_position` | `x`, `y` | EKF2'nin konum tahmini |
+| `vehicle_local_position_groundtruth` | `x`, `y`, `z` | simülatörün bildiği gerçek konum |
+| `vehicle_local_position` | `xy_valid`, `dead_reckoning` | konum güvenilir mi, EKF2 sadece IMU ile mi tahmin ediyor |
+| `estimator_status_flags` | `cs_gnss_pos` | EKF2 şu an GPS'i kullanıyor mu |
+| `vehicle_status` | `nav_state` | uçuş modu (4 = Hold, 12 = Descend) |
+
+`cs_gnss_pos`, EKF2'nin yayınladığı `estimator_status_flags` topic'indeki bayraklardan biri. Baştaki `cs` "control status" demek; bu bayraklar EKF2'nin o an hangi sensörleri kullandığını gösteriyor. Tanımı `msg/EstimatorStatusFlags.msg` dosyasında:
+
+```
+bool cs_tilt_align   #  0 - true if the filter tilt alignment is complete
+bool cs_yaw_align    #  1 - true if the filter yaw alignment is complete
+bool cs_gnss_pos     #  2 - true if GNSS position measurement fusion is intended
+```
+
+Değeri `EKF2::PublishStatusFlags()` içinde filtrenin kendi durumundan kopyalanıyor (`src/modules/ekf2/EKF2.cpp`):
+
+```cpp
+status_flags.cs_gnss_pos = _ekf.control_status_flags().gnss_pos;
+```
+
+İçerideki `gnss_pos` bayrağı da yukarıda bahsettiğim `Ekf::controlGpsFusion()` içinde, GPS verisi 7 saniye gelmeyince `false` yapılıyor. Yani `cs_gnss_pos`'un `True`'dan `False`'a döndüğü an, "EKF2 GPS'i bıraktı" anı.
+
 ### Sonuç
 
 ![GPS kaybı](../analysis/plots/gps_loss_overview.png)
@@ -151,9 +179,39 @@ Kodda karşılıkları (`src/modules/` altında):
 
 Grafikleri [`analysis/gps_loss.py`](../analysis/gps_loss.py) ile çizdim. Script, `.ulg` uçuş logunu `pyulog` ile okuyup olay anlarını buluyor ve iki grafiği üretiyor.
 
-Yazarken iki hata yaptım:
+Yazarken iki hata yaptım.
 
-- Zaman damgaları `uint64`. Log başlangıcından önceki bir değerden çıkarma yapınca sayı taşıyıp çok büyük değerler verdi. Mikrodenetleyicide `uint32_t` tick sayacıyla yaşanan taşma ile aynı hata. Önce float'a çevirerek çözdüm.
-- GPS kesintisini GPS mesajları arasındaki boşluktan bulmaya çalıştım, ama logger disarm'da kapandığı için GPS'in geri geldiği an logda yoktu. EKF2'nin `cs_gnss_pos` bayrağına bakarak çözdüm.
+### 1. uint64 taşması
+
+PX4'te her mesajın `timestamp` alanı, PX4 açıldığından beri geçen süreyi mikrosaniye olarak tutuyor ve tipi `uint64` (işaretsiz 64 bit). Grafiklerde zamanı "log başladığından beri geçen saniye" olarak göstermek için her mesajın zamanından log başlangıç zamanını çıkardım.
+
+Bazı mesajlar (örneğin `vehicle_status`) log başlamadan biraz önce yayınlanmış, zaman damgaları log başlangıcından küçük. Bunlarda sonuç eksi çıkmalı, ama işaretsiz bir sayı eksi olamıyor; sıfırın altına inince en büyük değere sarıyor:
+
+```
+log başlangıcı = 5 000 000 µs  (5.00 s)
+mesaj          = 4 990 000 µs  (4.99 s, 10 ms önce)
+
+uint64 ile:  4 990 000 - 5 000 000 = 18 446 744 073 709 541 616 µs   (yanlış)
+float ile :  4 990 000 - 5 000 000 = -10 000 µs = -0.01 s            (doğru)
+```
+
+Script'in ilk çıktısında `armed 18446744073709.55` gibi saçma bir değer görmemin sebebi buydu: 2⁶⁴ / 10⁶ = 18446744073709.55. Mikrodenetleyicide `uint32_t` ile aynı şey olur: `uint32_t fark = 5 - 10;` sonucu -5 değil 4294967291.
+
+Çözüm, çıkarmadan önce float'a çevirmek:
+
+```python
+data[d.name]["t"] = (d.data["timestamp"].astype(np.float64) - float(t0)) / 1e6
+```
+
+### 2. GPS kaybı anını bulmak
+
+İlk denemede GPS kesintisini, `sensor_gps` mesajları arasındaki en uzun boşluktan bulmaya çalıştım. Ama logger disarm anında kapandığı için GPS'in geri geldiği an logda yoktu; boşluğun sonu hiç kaydedilmemişti. Bunun yerine EKF2'nin `cs_gnss_pos` bayrağının `True`'dan `False`'a döndüğü anı aradım:
+
+```python
+gnss = fl["cs_gnss_pos"].astype(int)
+drops = np.where(np.diff(gnss) == -1)[0]    # 1 -> 0 geçişi
+```
+
+Zaman çizelgesindeki "EKF2 GPS füzyonunu bıraktı" satırı buradan geliyor.
 
 Önceki: [4. PX4 mimarisi](04-mimari-uorb.md)
