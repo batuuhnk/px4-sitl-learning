@@ -38,4 +38,6 @@ Kabaca: ArduPilot hobi ve saha kullanımında çok yaygın ve çok olgun. PX4 is
 
 Ben PX4'ü seçtim. Sebebi uORB ve modül yapısının, FreeRTOS'ta task'lar ve kuyruklarla kurduğum yapılara benzemesi; kodu okurken nereye bakacağımı daha kolay anlıyorum.
 
+PX4 kavramlarının (uORB, topic, work queue, parametre...) gömülü sistemlerdeki karşılıklarını [kavramlar sözlüğünde](kavramlar.md) topladım.
+
 Sonraki: [2. SITL, simülatörler ve QGroundControl](02-sitl-ve-simulatorler.md)

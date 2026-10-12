@@ -10,12 +10,14 @@ STM32 ve FreeRTOS üzerinde gömülü yazılım geliştiriyorum. Bu repoda drone
 4. [PX4 mimarisi: uORB ve modüller](docs/04-mimari-uorb.md): Modül şeması, thread'ler, topic'ler, ilk kod değişikliğim
 5. [Kontrol döngüleri ve GPS kaybı](docs/05-kontrol-ve-gps-kaybi.md): Havada kontrol zinciri, GPS kesilince ne oluyor, log analizi
 
+Okurken yanında açık tutmak için: [Kavramlar sözlüğü](docs/kavramlar.md). uORB, topic, work queue, parametre gibi PX4 kavramları ve STM32/FreeRTOS'taki karşılıkları.
+
 ![GPS kaybı](analysis/plots/gps_loss_overview.png)
 
 ## Klasörler
 
 ```
-docs/       notlar (yukarıdaki sırayla)
+docs/       notlar (yukarıdaki sırayla) ve kavramlar sözlüğü
 scripts/    sitl.sh: derle ve çalıştır, pxh.sh: çalışan PX4'e komut gönder
 analysis/   uçuş logu analiz scripti ve grafikler
 ```
