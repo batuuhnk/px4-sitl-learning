@@ -39,7 +39,40 @@ sudo apt update
 
 ## Adım 2: Docker
 
-**Ubuntu terminali.** PX4'ü container içinde derleyip çalıştıracağım için Docker'ı kurdum:
+### Container nedir, neden kullandım?
+
+Container, bilgisayarda çalışan ama kendi dosya sistemini gören izole bir program. İçinde kendi Ubuntu sürümü, derleyicisi, kütüphaneleri olabiliyor. Sanal makineden farkı, ayrı bir işletim sistemi çekirdeği çalıştırmaması; bilgisayarın çekirdeğini paylaşıyor. Bu yüzden saniyeler içinde açılıyor.
+
+Kendi sistemimle PX4'ün derleme container'ını karşılaştırınca fark net görünüyor:
+
+| | Benim Ubuntu'm | `px4io/px4-dev` container'ı |
+|---|---|---|
+| İşletim sistemi | Ubuntu 26.04 | Ubuntu 24.04 |
+| gcc, cmake | yok | var |
+| pyulog | yok | var |
+| Çekirdek | 7.0.0-38 | 7.0.0-38 (aynı) |
+
+FreeRTOS'tan benzetme: MPU ile korunan task'lar gibi. Her biri kendi bellek bölgesini görüyor ama hepsi aynı çekirdek üzerinde çalışıyor.
+
+İki kavram sürekli geçiyor:
+
+- **Image:** Değişmeyen, hazır paketlenmiş şablon. Karta yüklenmeyi bekleyen `.bin` dosyası gibi.
+- **Container:** Image'dan `docker run` ile başlatılmış, çalışan bir kopya. Aynı image'dan istediğim kadar container başlatabiliyorum.
+
+Bende katmanlar şöyle: Windows → VirtualBox (Ubuntu 26.04) → Docker container (Ubuntu 24.04).
+
+Docker kullanma sebebim: PX4'ün kurulum betiği Ubuntu 26.04'ü desteklemiyor. Derleme araçlarını kendi sistemime elle uydurmaya çalışmak yerine PX4 ekibinin her şeyi kurulu hazırladığı image'ı kullandım. Sistemime hiçbir derleme aracı kurmadım.
+
+Bilmem gereken bir nokta: container normalde bilgisayarımdaki dosyaları göremiyor ve `--rm` ile başlatınca kapandığı anda içindeki değişiklikler siliniyor. Kalıcı olan sadece `-v` ile bağladığım klasörler. PX4 kodunu `-v` ile bağladığım için VS Code'da değiştirdiğim dosyayı container içindeki derleyici görüyor, derleme çıktısı da benim klasörüme yazılıyor.
+
+```bash
+docker images      # bilgisayardaki image'lar
+docker ps          # şu an çalışan container'lar
+```
+
+### Kurulum
+
+**Ubuntu terminali.** Docker'ı kurdum:
 
 ```bash
 sudo apt install docker.io
