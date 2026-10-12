@@ -166,7 +166,7 @@ INFO  [px4_simple_app] Accelerometer:    -0.0814   -0.0319   -9.7220
 ...
 ```
 
-Z ekseninin -9.8 çıkmasının sebebi: ivmeölçer yerçekimini değil, aracı tutan kuvveti ölçüyor (yerin aracı yukarı itmesi). PX4'te gövde ekseni FRD (ileri, sağ, aşağı) olduğu için yukarı doğru olan bu kuvvet eksi çıkıyor.
+Araç yerde hareketsiz dururken Z ekseni -9.8 okudu. Araç düz durduğu için 9.8'in tamamının Z'de olması beklenen bir şey; dikkat çeken kısım işaret. İvmeölçer yerçekimini doğrudan hissedemiyor, aracı yukarı iten kuvveti ölçüyor (yerdeyken yerin, havadayken motorların itmesi). PX4'te gövde ekseni FRD (ileri, sağ, aşağı) olduğu için yukarı yönlü bu kuvvet eksi çıkıyor. Aynı sebeple serbest düşüşte ivmeölçer 0 okur.
 
 Değişiklik: [batuuhnk/PX4-Autopilot@a573d42](https://github.com/batuuhnk/PX4-Autopilot/commit/a573d4298d5792f6698205de961f43782ffa3e36)
 

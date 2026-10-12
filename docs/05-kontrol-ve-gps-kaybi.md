@@ -1,8 +1,58 @@
 # 5. Kontrol döngüleri ve GPS kaybı
 
+## Aracı nasıl uçurdum?
+
+Drone'u elle (kumanda ya da joystick ile) uçurmadım. PX4'ün otomatik kalkış modunu kullandım; araç kendi kendine kalkıp havada bekledi. QGroundControl'ü bu sırada sadece izlemek için açık tuttum: haritada konumu, yüksekliği ve uçuş modunu oradan takip ettim.
+
+### Kalkış komutu
+
+PX4 ayrı bir terminalde `~/px4/sitl.sh` ile çalışırken, **Ubuntu terminalinden** şu komutu gönderdim:
+
+```bash
+~/px4/pxh.sh commander takeoff
+```
+
+Bu, PX4 konsoluna `commander takeoff` yazmakla aynı şey. Sonrasında olanlar:
+
+1. `commander` aracı arm etti (motorlar çalıştı) ve uçuş modunu **Takeoff**'a aldı.
+2. Araç `MIS_TAKEOFF_ALT` parametresindeki yüksekliğe (varsayılan 2.5 m) dikey olarak tırmandı.
+3. Hedef yüksekliğe ulaşınca mod kendiliğinden **Hold**'a geçti. Araç olduğu yerde asılı kaldı (hover).
+
+Yüksekliği birkaç saniyede bir okuyarak tırmanışı da takip ettim:
+
+```bash
+~/px4/pxh.sh listener vehicle_local_position
+```
+
+`z` değeri 0'dan -2.2'ye indi. PX4 dünya ekseninde NED (kuzey, doğu, aşağı) kullandığı için yukarı çıkmak z'nin eksi yönde büyümesi demek.
+
+### QGroundControl'den de yapılabilirdi
+
+QGC'deki **Takeoff** düğmesi aynı işi yapıyor. Fark sadece komutun geldiği yol:
+
+```
+QGC "Takeoff" düğmesi  -> MAVLink mesajı (UDP 14550) -> mavlink modülü -> vehicle_command -> commander
+pxh> commander takeoff ->                                                   vehicle_command -> commander
+```
+
+İki durumda da `commander` aynı `vehicle_command` mesajını alıyor (4. bölümdeki "Karar ve haberleşme" şeması). Ben terminali tercih ettim, çünkü komutları ve ölçümleri aynı yerden, tekrarlanabilir şekilde çalıştırabiliyordum.
+
+### Uçuştaki diğer komutlar
+
+Araç havadayken sırasıyla şunları çalıştırdım (hepsi Ubuntu terminalinden, `pxh.sh` ile):
+
+```bash
+~/px4/pxh.sh param set SYS_FAILURE_EN 1    # hata enjeksiyonunu aç
+~/px4/pxh.sh failure gps off               # GPS hatası dene (SIH'te çalışmadı, aşağıda)
+~/px4/pxh.sh sensor_gps_sim stop           # GPS'i gerçekten kes
+~/px4/pxh.sh sensor_gps_sim start          # iniş bittikten sonra GPS'i geri aç
+```
+
+İnişi ben komut vererek yapmadım. GPS kesilince PX4'ün failsafe mekanizması aracı kendisi indirdi ve motorları kapattı. Bu da deneyin asıl gözlemlerinden biri oldu.
+
 ## Havada kontrol zinciri
 
-Aracı yaklaşık 2.2 m'ye kaldırıp havada sabit dururken (hover) her kontrol katmanının girişini ve çıkışını okudum:
+Araç yaklaşık 2.2 m'de havada sabit dururken (hover) her kontrol katmanının girişini ve çıkışını okudum:
 
 | Katman | Hedef | Ölçülen |
 |---|---|---|
@@ -11,8 +61,6 @@ Aracı yaklaşık 2.2 m'ye kaldırıp havada sabit dururken (hover) her kontrol 
 | Rate | roll -0.05 rad/s | roll 0.16 rad/s |
 | Tork | x = +0.039 | |
 | Motorlar | 0.451, 0.519, 0.496, 0.461 | |
-
-PX4 dünya ekseninde de NED (kuzey, doğu, aşağı) kullandığı için 2 m yükseklik z = -2 olarak görünüyor.
 
 Motorların ortalaması 0.48, yani araç havada kalmak için motorlarının yaklaşık yarısını kullanıyor. Sol motorlar (M2, M3) sağdakilerden biraz fazla dönüyor; bu da tork satırındaki pozitif roll değeriyle (aracı sağa yatırma) uyumlu.
 
