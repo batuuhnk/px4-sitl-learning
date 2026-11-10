@@ -9,15 +9,19 @@ STM32 ve FreeRTOS üzerinde gömülü yazılım geliştiriyorum. Bu repoda drone
 3. [Kurulum ve kullandığım komutlar](docs/03-kurulum-ve-komutlar.md): Hangi komutu nerede ve neden çalıştırdım, adım adım
 4. [PX4 mimarisi: uORB ve modüller](docs/04-mimari-uorb.md): Modül şeması, thread'ler, topic'ler, ilk kod değişikliğim
 5. [Kontrol döngüleri ve GPS kaybı](docs/05-kontrol-ve-gps-kaybi.md): Havada kontrol zinciri, GPS kesilince ne oluyor, log analizi
+6. [Kendi modülüm, simüle baro sürücüsü ve MAVLink](docs/06-modul-surucu-ve-mavlink.md): Work queue modülü, hata enjekte edilebilen baro sürücüsü, pymavlink ile görev, baro hatasında EKF2'nin tepkisi
 
 ![GPS kaybı](analysis/plots/gps_loss_overview.png)
+
+![Baro hatası](analysis/plots/baro_step_50m.png)
 
 ## Klasörler
 
 ```
 docs/       notlar (yukarıdaki sırayla)
-scripts/    sitl.sh: derle ve çalıştır, pxh.sh: çalışan PX4'e komut gönder
-analysis/   uçuş logu analiz scripti ve grafikler
+scripts/    sitl.sh: derle ve çalıştır, pxh.sh: çalışan PX4'e komut gönder,
+            mission.py: MAVLink ile arm, kalkış ve görev
+analysis/   uçuş logu analiz scriptleri (gps_loss.py, baro_fault.py) ve grafikler
 ```
 
 PX4 üzerindeki kod değişikliklerim fork'umda: [batuuhnk/PX4-Autopilot](https://github.com/batuuhnk/PX4-Autopilot/tree/learning/sitl-week1)
@@ -34,6 +38,14 @@ Ayrıntılı kurulum adımları 3. bölümde. Log analizi (pyulog ve matplotlib 
 
 ```bash
 python3 analysis/gps_loss.py <ucus_logu.ulg> analysis/plots
+python3 analysis/baro_fault.py <ucus_logu.ulg> analysis/plots
+```
+
+MAVLink görevi (pymavlink gerekiyor, PX4 çalışırken):
+
+```bash
+python3 scripts/mission.py                              # takeoff, kare görev, RTL
+python3 scripts/mission.py --takeoff-only --hover 30    # kalk, bekle, in
 ```
 
 ## Sırada
