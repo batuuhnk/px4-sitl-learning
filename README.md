@@ -2,6 +2,11 @@
 
 STM32 ve FreeRTOS üzerinde gömülü yazılım geliştiriyorum. Bu repoda drone uçuş yazılımı PX4'ü öğrenirken yaptıklarımı tutuyorum. Elimde donanım olmadığı için her şeyi simülasyonda (SITL) yaptım: PX4'ü kaynaktan derledim, QGroundControl ile uçurdum, uçuş loglarını analiz ettim.
 
+> [!NOTE]
+> **In English:** notes from learning the PX4 flight stack entirely in simulation (SITL, no hardware). I built PX4 from source, traced its uORB publish/subscribe architecture, wrote my own work-queue module and a simulated barometer driver with fault injection, flew missions over MAVLink, and analysed ULog flight logs to see how EKF2 reacts to GPS loss and baro faults. Notes are in Turkish; code, plots and commands are self-explanatory.
+
+> **Start here:** 🛠️ [Own module & baro driver](docs/06-modul-surucu-ve-mavlink.md) · 🧩 [uORB architecture](docs/04-mimari-uorb.md) · 📉 [GPS-loss log analysis](docs/05-kontrol-ve-gps-kaybi.md) · 💻 [PX4 fork with my changes](https://github.com/batuuhnk/PX4-Autopilot/tree/learning/sitl-week1)
+
 ## Okuma sırası
 
 1. [PX4, Pixhawk ve ArduPilot](docs/01-px4-pixhawk-ardupilot.md): Uçuş kontrolcüsü nedir, donanım ve yazılım tarafı, PX4'ün temel kavramları ve FreeRTOS karşılıkları, ArduPilot ile karşılaştırma
@@ -52,3 +57,7 @@ python3 scripts/mission.py --takeoff-only --hover 30    # kalk, bekle, in
 
 - SIH simülatörüne GPS hata enjeksiyonu eklemek (şu an çalışmıyor, bkz. 5. bölüm)
 - ArduPilot mimarisiyle daha ayrıntılı karşılaştırma
+
+---
+
+[← Back to profile](https://github.com/batuuhnk) · More: [cortex-m-sensor-fusion-benchmark](https://github.com/batuuhnk/cortex-m-sensor-fusion-benchmark) · [px4-sitl-learning](https://github.com/batuuhnk/px4-sitl-learning) · [cpp-temelleri](https://github.com/batuuhnk/cpp-temelleri) · [embedded-handbook](https://github.com/batuuhnk/embedded-handbook)
